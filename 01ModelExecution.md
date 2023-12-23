@@ -1,0 +1,143 @@
+
+# Model Execution
+
+This markdown file provides the code required to run the article’s
+model.
+
+For confidentiality reasons only the 4 printers graphed in the article
+are provided. They are printer ID’s 7, 116, 207 and 216. Due to the
+scarce number of observations used (4 printers with a total of 96
+observed printer-weeks), the results cannot reflect the actual results
+obtained in the article. It is intended to show the JAGS sampling
+execution. The results from the complete dataset are stored in the
+[model.RData](https://doi.org/10.5281/zenodo.10413762) including the 357
+printers and 8,113 printer weeks.
+
+## 1. Library loading
+
+``` r
+library(R2jags)
+```
+
+## 2. Data loading
+
+Only 4 out of the 357 printers are included in this code to keep data
+confidentiality. Each row in the dataset is a printer-week. The dataset
+cotains the following fields (columns):
+
+1.  **rowId**, the consecutive row number from the original 8,113
+    printer-weeks dataset for all 357 printers.
+2.  **id**, printer ID
+3.  **jagsId**, the ID needed for the JAGS model to run
+    (01ModelExecution.Rmd) as it expects consecutively numbered
+    printers. It goes from 1 to 4.
+4.  **week**, observed week ISO number.
+5.  **nTotal**, total number of errors logged by the printer on this
+    week.
+6.  **timeImHour**, total weekly printing time.
+7.  **PVCsecPerc**, total percent time spent printing on PVC on this
+    week.
+8.  **jobsPerTime**, average number of jobs per printing hour.
+
+``` r
+load(file='data/data.RData')
+
+nObs = dim(data)[1]
+nMaq = length(unique(data$id))
+```
+
+## 3. Bayes Model Implementation
+
+### 3.1 Model
+
+$$\displaylines{
+y_{jt} \sim Pois(\lambda_{jt} T_{jt}) = Pois(\theta_{jt}) \\
+log(\theta_{jt}) = \beta_0 + \beta_1 \times PVCsecPerc_{jt} + \beta_2 \times jobsPerTime_{jt} + \alpha_j + z_{jt} \delta + log(T_{jt}) \\
+\beta_k \sim N(0,100) \\
+z_{jt} \sim Bernoulli(\pi) \\
+\pi \sim Beta(1,3) \\
+\alpha_j \sim N(0,\sigma^2) \\
+\delta \sim Gamma(0.001, 0.001) \\
+1/\sigma^2 = \tau^2 \sim Gamma(0.001,0.001) 
+}$$
+
+``` r
+modBugs2 <- "
+    model {
+    
+    # likelihood    
+    
+    for (i in 1:nObs){
+        y[i] ~ dpois(theta[i])
+        log(theta[i]) <- b0 + b1 * pvc[i] + b2 * jobRate[i] + alpha[printer[i]] + z[i] * delta +log(offset[i])
+        z[i] ~ dbern(p)
+    }   
+
+    # priors
+    
+    for (j in 1:nPrinter) {
+      alpha[j] ~ dnorm(0,tau2)
+    }
+    delta ~ dgamma(0.001,0.001)
+    tau2 ~ dgamma(0.001,0.001)
+    b0 ~ dnorm(0,1/100)
+    b1 ~ dnorm(0,1/100)
+    b2 ~ dnorm(0,1/100)
+    p ~ dbeta (1,3)
+
+  }
+"
+```
+
+### 3.2 Model Data
+
+``` r
+dataBugs <- list(nObs = nObs,
+                 nPrinter = nMaq,
+                 y = data$nTotal,
+                 offset = data$timeImHour,
+                 printer = data$jagsId,
+                 pvc = data$PVCsecPerc,
+                 jobRate = data$jobsPerTime)
+```
+
+### 3.3 Model MCMC Sampling
+
+``` r
+Iter <- 10000
+
+Burn <- 1000
+Chain <- 3
+Nthin <- 1
+
+jag.inits <- function(){
+  list('b0' = rnorm(1,-3,0.5), 'b1' = 0, 'b2' = 0, 'alpha' = rnorm(nMaq,0,1), 'delta' = runif(1, 0, 4), 
+       'z' = rep(0,nObs), tau2 = 1)
+}
+
+set.seed(1964)
+initPar <- lapply(1:Chain, function(i) jag.inits())
+
+parameters <- c("b0","b1","b2","alpha","delta","p","z","tau2") 
+
+model <- jags(dataBugs,
+              inits = initPar,
+              parameters.to.save=parameters,
+              n.iter = (Iter+Burn),
+              n.burnin = Burn,
+              n.thin = Nthin,
+              n.chains = Chain,
+              model = textConnection(modBugs2))
+```
+
+    ## module glm loaded
+
+    ## Compiling model graph
+    ##    Resolving undeclared variables
+    ##    Allocating nodes
+    ## Graph information:
+    ##    Observed stochastic nodes: 96
+    ##    Unobserved stochastic nodes: 106
+    ##    Total graph size: 1119
+    ## 
+    ## Initializing model
