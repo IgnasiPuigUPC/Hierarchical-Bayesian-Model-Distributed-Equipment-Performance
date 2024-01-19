@@ -1,0 +1,17 @@
+cff-version: 1.2.0
+message: "If you use this software, please cite it as below."
+authors:
+- family-names: "Ignasi"
+  given-names: "Puig-de-Dou"
+  orcid: "https://orcid.org/0000-0003-1747-8564"
+- family-names: "Bernat"
+  given-names: "Plandolit"
+  orcid: "https://orcid.org/0000-0001-5043-6783"
+- family-names: "Xavier"
+  given-names: "Puig"
+  orcid: "https://orcid.org/0000-0001-6525-0498"
+title: "Bayesian Hierarchical Modeling to Track Distributed Industrial Equipment Performance"
+version: 0.1.0
+doi: 10.5281/zenodo.10529965
+date-released: 2024-01-18
+url: "https://github.com/IgnasiPuigUPC/Hierarchical-Bayesian-Model-Distributed-Equipment-Performance"
